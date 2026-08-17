@@ -22,7 +22,7 @@ if not Kairo then error("Kairo UI gagal dimuat") end
 local Window = Kairo:CreateWindow({
     Title = "W424HUB",
     Theme = "Ocean",
-    Size = UDim2.fromOffset(600, 540),
+    Size = UDim2.fromOffset(450, 440),
     Center = true,
     Draggable = true,
     Resize = true,
