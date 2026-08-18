@@ -1,6 +1,7 @@
 -- ============================================================
---  W424HUB - GROW A GARDEN 2
---  V.1.0 ============================================================
+--  W424HUB ULTIMATE – Kairo UI (Ocean Theme)
+--  Grow a Garden 2 – All-in-One Script
+-- ============================================================
 print("=== LOADING W424HUB ULTIMATE ===")
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -21,29 +22,35 @@ if not Kairo then error("Kairo UI gagal dimuat") end
 local Window = Kairo:CreateWindow({
     Title = "W424HUB",
     Theme = "Ocean",
-    Size = UDim2.fromOffset(530, 440),
+    Size = UDim2.fromOffset(600, 540),
     Center = true,
     Draggable = true,
     Resize = true,
     Badges = {"Ultimate", "Kairo"},
-    MinimizeKey = Enum.KeyCode.RightShift,  -- default minimaze
+    MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     Config = { Enabled = true, Folder = "W424HUB_Ultimate", AutoLoad = true }
 })
 
--- ===== FLOATING BUBBLE (Logo W) + Toggle =====
+-- ===== FLOATING BUBBLE (Logo W) – FIXED =====
 local function createBubble()
+    -- Hapus bubble lama kalau ada
+    local oldGui = CoreGui:FindFirstChild("W424Bubble")
+    if oldGui then oldGui:Destroy() end
+
     local gui = Instance.new("ScreenGui")
     gui.Name = "W424Bubble"
     gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Parent = CoreGui
 
     local btn = Instance.new("ImageButton")
-    btn.Size = UDim2.new(0, 50, 0, 50)
+    btn.Size = UDim2.new(0, 56, 0, 56)
     btn.Position = UDim2.new(0, 15, 0, 150)
     btn.BackgroundColor3 = Color3.fromRGB(0, 130, 200)
-    btn.BackgroundTransparency = 0.15
+    btn.BackgroundTransparency = 0.25
     btn.BorderSizePixel = 0
+    btn.ZIndex = 10
     btn.Parent = gui
 
     local corner = Instance.new("UICorner")
@@ -51,39 +58,40 @@ local function createBubble()
     corner.Parent = btn
 
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255,255,255)
+    stroke.Color = Color3.fromRGB(255, 255, 255)
     stroke.Thickness = 2
-    stroke.Transparency = 0.4
+    stroke.Transparency = 0.3
     stroke.Parent = btn
+
+    -- Shadow (opsional)
+    local shadow = Instance.new("UIShadow")
+    shadow.Color = Color3.fromRGB(0, 0, 0)
+    shadow.Transparency = 0.5
+    shadow.Offset = Vector2.new(2, 2)
+    shadow.Parent = btn
 
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
     label.Text = "W"
-    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.TextScaled = true
     label.Font = Enum.Font.GothamBlack
-    label.TextSize = 30
+    label.TextSize = 32
+    label.ZIndex = 11
     label.Parent = btn
 
-    -- ===== TOGGLE UI (bubble click) =====
+    -- Toggle Window on click
     btn.MouseButton1Click:Connect(function()
-        local mainFrame = Window.MainFrame or Window.Frame
-        if mainFrame then
-            mainFrame.Visible = not mainFrame.Visible
-        else
-            -- fallback: coba cari ScreenGui
-            local screenGui = mainFrame and mainFrame.Parent
-            if screenGui and screenGui:IsA("ScreenGui") then
-                screenGui.Enabled = not screenGui.Enabled
-            else
-                warn("Gagal menemukan frame utama untuk toggle")
-            end
-        end
+        Window:ToggleVisibility()
     end)
 
-    -- ===== DRAG =====
-    local dragging, dragInput, dragStart, startPos
+    -- Drag logic
+    local dragging = false
+    local dragInput = nil
+    local dragStart = nil
+    local startPos = nil
+
     btn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
@@ -91,36 +99,50 @@ local function createBubble()
             startPos = btn.Position
         end
     end)
+
     btn.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
+
     UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
+        if input == dragInput and dragging and startPos then
             local delta = input.Position - dragStart
-            btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            btn.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
         end
     end)
+
     UserInputService.InputEnded:Connect(function(input)
-        if input == dragInput then dragging = false
+        if input == dragInput then
+            dragging = false
+            dragInput = nil
+        end
+    end)
+
+    -- Optional: tahan untuk prevent drag keluar layar
+    btn:GetPropertyChangedSignal("Position"):Connect(function()
+        local pos = btn.Position
+        local offsetX = pos.X.Offset
+        local offsetY = pos.Y.Offset
+        local maxX = 200
+        local maxY = 200
+        if offsetX < 0 then offsetX = 0 end
+        if offsetY < 0 then offsetY = 0 end
+        if offsetX > maxX then offsetX = maxX end
+        if offsetY > maxY then offsetY = maxY end
+        btn.Position = UDim2.new(pos.X.Scale, offsetX, pos.Y.Scale, offsetY)
     end)
 end
 createBubble()
 
--- ===== KEYBIND F3 UNTUK TOGGLE UI (PC) =====
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.F3 then
-        local mainFrame = Window.MainFrame or Window.Frame
-        if mainFrame then
-            mainFrame.Visible = not mainFrame.Visible
-        end
-    end
-end)
-
 -- ============================================================
---  MODUL DAN FUNGSI INTI
+--  MODUL DAN FUNGSI INTI (TETAP SAMA – TIDAK DIUBAH)
 -- ============================================================
 local Networking = require(ReplicatedStorage.SharedModules.Networking)
 local SeedData = require(ReplicatedStorage.SharedModules.SeedData)
@@ -363,7 +385,7 @@ local function autoPlant()
 end
 
 -- ============================================================
---  UI – TABS & ELEMEN
+--  UI – TABS & ELEMEN (TETAP SAMA)
 -- ============================================================
 local function addToggle(tab, name, desc, key, default, cb)
     return tab:AddToggle(name, desc or "", default or false, function(v)
@@ -495,7 +517,7 @@ end)
 Window:Notify({
     Title = "W424HUB Ultimate",
     Description = "All-in-One Grow a Garden 2 Script",
-    Content = "Press F3 or click W bubble to toggle",
+    Content = "Press RightShift to toggle",
     Color = Color3.fromRGB(0, 130, 200),
     Delay = 5
 })
