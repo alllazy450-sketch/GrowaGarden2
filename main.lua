@@ -1,7 +1,6 @@
 -- ============================================================
---  W424HUB ULTIMATE – Kairo UI (Ocean Theme)
---  Grow a Garden 2 – All-in-One Script
--- ============================================================
+--  W424HUB - GROW A GARDEN 2
+--  V.1.0 ============================================================
 print("=== LOADING W424HUB ULTIMATE ===")
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -22,22 +21,23 @@ if not Kairo then error("Kairo UI gagal dimuat") end
 local Window = Kairo:CreateWindow({
     Title = "W424HUB",
     Theme = "Ocean",
-    Size = UDim2.fromOffset(450, 440),
+    Size = UDim2.fromOffset(530, 440),
     Center = true,
     Draggable = true,
     Resize = true,
     Badges = {"Ultimate", "Kairo"},
-    MinimizeKey = Enum.KeyCode.RightShift,
+    MinimizeKey = Enum.KeyCode.RightShift,  -- default minimaze
     MinimizeButton = true,
     Config = { Enabled = true, Folder = "W424HUB_Ultimate", AutoLoad = true }
 })
 
--- ===== FLOATING BUBBLE (Logo W) =====
+-- ===== FLOATING BUBBLE (Logo W) + Toggle =====
 local function createBubble()
     local gui = Instance.new("ScreenGui")
     gui.Name = "W424Bubble"
     gui.ResetOnSpawn = false
     gui.Parent = CoreGui
+
     local btn = Instance.new("ImageButton")
     btn.Size = UDim2.new(0, 50, 0, 50)
     btn.Position = UDim2.new(0, 15, 0, 150)
@@ -45,14 +45,17 @@ local function createBubble()
     btn.BackgroundTransparency = 0.15
     btn.BorderSizePixel = 0
     btn.Parent = gui
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(1, 0)
     corner.Parent = btn
+
     local stroke = Instance.new("UIStroke")
     stroke.Color = Color3.fromRGB(255,255,255)
     stroke.Thickness = 2
     stroke.Transparency = 0.4
     stroke.Parent = btn
+
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
@@ -62,8 +65,24 @@ local function createBubble()
     label.Font = Enum.Font.GothamBlack
     label.TextSize = 30
     label.Parent = btn
-    btn.MouseButton1Click:Connect(function() Window:ToggleVisibility() end)
-    -- drag
+
+    -- ===== TOGGLE UI (bubble click) =====
+    btn.MouseButton1Click:Connect(function()
+        local mainFrame = Window.MainFrame or Window.Frame
+        if mainFrame then
+            mainFrame.Visible = not mainFrame.Visible
+        else
+            -- fallback: coba cari ScreenGui
+            local screenGui = mainFrame and mainFrame.Parent
+            if screenGui and screenGui:IsA("ScreenGui") then
+                screenGui.Enabled = not screenGui.Enabled
+            else
+                warn("Gagal menemukan frame utama untuk toggle")
+            end
+        end
+    end)
+
+    -- ===== DRAG =====
     local dragging, dragInput, dragStart, startPos
     btn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -83,9 +102,22 @@ local function createBubble()
             btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
-    UserInputService.InputEnded:Connect(function(input) if input == dragInput then dragging = false end end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input == dragInput then dragging = false
+    end)
 end
 createBubble()
+
+-- ===== KEYBIND F3 UNTUK TOGGLE UI (PC) =====
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F3 then
+        local mainFrame = Window.MainFrame or Window.Frame
+        if mainFrame then
+            mainFrame.Visible = not mainFrame.Visible
+        end
+    end
+end)
 
 -- ============================================================
 --  MODUL DAN FUNGSI INTI
@@ -463,7 +495,7 @@ end)
 Window:Notify({
     Title = "W424HUB Ultimate",
     Description = "All-in-One Grow a Garden 2 Script",
-    Content = "Press RightShift to toggle",
+    Content = "Press F3 or click W bubble to toggle",
     Color = Color3.fromRGB(0, 130, 200),
     Delay = 5
 })
