@@ -1,8 +1,8 @@
 -- ============================================================
---  W424HUB ULTIMATE – Kairo UI (Ocean Theme)
---  Grow a Garden 2 – All-in-One Script
+--  W424HUB ULTIMATE – Kairo UI (Midnight Theme)
+--  Grow a Garden 2 – V.1.0
 -- ============================================================
-print("=== LOADING W424HUB ULTIMATE ===")
+print("=== LOADING W424HUB GAG2! ===")
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 local Players = game:GetService("Players")
@@ -12,29 +12,28 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
--- ===== LOAD KAIRO UI =====
+-- ===== LOAD KAIRO UI (Midnight Version) =====
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
 if not Kairo then error("Kairo UI gagal dimuat") end
 
 local Window = Kairo:CreateWindow({
     Title = "W424HUB",
-    Theme = "Ocean",
-    Size = UDim2.fromOffset(450, 440),
+    Theme = "Midnight",
+    Size = UDim2.fromOffset(380, 450),
     Center = true,
     Draggable = true,
-    Resize = true,
-    Badges = {"Ultimate", "Kairo"},
+    Resize = false,
+    Badges = {"v3.1", "ULTIMATE"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
+    MinimizeButton_Image = "rbxassetid://116850882259653",
     Config = { Enabled = true, Folder = "W424HUB_Ultimate", AutoLoad = true }
 })
 
--- ===== FLOATING BUBBLE (Logo W) – FIXED =====
+-- ===== FLOATING BUBBLE (Logo W) =====
 local function createBubble()
-    -- Hapus bubble lama kalau ada
     local oldGui = CoreGui:FindFirstChild("W424Bubble")
     if oldGui then oldGui:Destroy() end
 
@@ -47,8 +46,8 @@ local function createBubble()
     local btn = Instance.new("ImageButton")
     btn.Size = UDim2.new(0, 56, 0, 56)
     btn.Position = UDim2.new(0, 15, 0, 150)
-    btn.BackgroundColor3 = Color3.fromRGB(0, 130, 200)
-    btn.BackgroundTransparency = 0.25
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+    btn.BackgroundTransparency = 0.15
     btn.BorderSizePixel = 0
     btn.ZIndex = 10
     btn.Parent = gui
@@ -58,17 +57,10 @@ local function createBubble()
     corner.Parent = btn
 
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Color = Color3.fromRGB(150, 150, 255)
     stroke.Thickness = 2
     stroke.Transparency = 0.3
     stroke.Parent = btn
-
-    -- Shadow (opsional)
-    local shadow = Instance.new("UIShadow")
-    shadow.Color = Color3.fromRGB(0, 0, 0)
-    shadow.Transparency = 0.5
-    shadow.Offset = Vector2.new(2, 2)
-    shadow.Parent = btn
 
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
@@ -81,12 +73,10 @@ local function createBubble()
     label.ZIndex = 11
     label.Parent = btn
 
-    -- Toggle Window on click
     btn.MouseButton1Click:Connect(function()
         Window:ToggleVisibility()
     end)
 
-    -- Drag logic
     local dragging = false
     local dragInput = nil
     local dragStart = nil
@@ -125,24 +115,21 @@ local function createBubble()
         end
     end)
 
-    -- Optional: tahan untuk prevent drag keluar layar
     btn:GetPropertyChangedSignal("Position"):Connect(function()
         local pos = btn.Position
         local offsetX = pos.X.Offset
         local offsetY = pos.Y.Offset
-        local maxX = 200
-        local maxY = 200
         if offsetX < 0 then offsetX = 0 end
         if offsetY < 0 then offsetY = 0 end
-        if offsetX > maxX then offsetX = maxX end
-        if offsetY > maxY then offsetY = maxY end
+        if offsetX > 200 then offsetX = 200 end
+        if offsetY > 200 then offsetY = 200 end
         btn.Position = UDim2.new(pos.X.Scale, offsetX, pos.Y.Scale, offsetY)
     end)
 end
 createBubble()
 
 -- ============================================================
---  MODUL DAN FUNGSI INTI (TETAP SAMA – TIDAK DIUBAH)
+--  MODUL DAN FUNGSI INTI
 -- ============================================================
 local Networking = require(ReplicatedStorage.SharedModules.Networking)
 local SeedData = require(ReplicatedStorage.SharedModules.SeedData)
@@ -288,7 +275,6 @@ local function harvestAll()
                 end
             end
         else
-            -- direct plant harvest (no fruits folder)
             local age = plant:GetAttribute("Age") or 0
             local maxAge = plant:GetAttribute("MaxAge") or 0
             if age >= maxAge then
@@ -309,7 +295,6 @@ local function sellAll()
 end
 
 local function buyItems()
-    -- Buy seeds
     local seedStock = ReplicatedStorage.StockValues.SeedShop.Items
     for _, item in ipairs(seedStock:GetChildren()) do
         if item:IsA("ValueBase") and item.Value > 0 then
@@ -317,7 +302,6 @@ local function buyItems()
             task.wait(0.05)
         end
     end
-    -- Buy gears
     local gearStock = ReplicatedStorage.StockValues.GearShop.Items
     for _, item in ipairs(gearStock:GetChildren()) do
         if item:IsA("ValueBase") and item.Value > 0 then
@@ -325,7 +309,6 @@ local function buyItems()
             task.wait(0.05)
         end
     end
-    -- Buy crates
     local crateStock = ReplicatedStorage.StockValues.CrateShop.Items
     for _, item in ipairs(crateStock:GetChildren()) do
         if item:IsA("ValueBase") and item.Value > 0 then
@@ -355,10 +338,8 @@ local function autoPlant()
     if not plot then return end
     local seeds = LocalPlayer:GetAttribute("Inventory") and LocalPlayer:GetAttribute("Inventory").Seeds or {}
     local freeSpots = {}
-    -- cari plant area
     for _, area in ipairs(CollectionService:GetTagged("PlantArea")) do
         if area:IsDescendantOf(plot) then
-            -- sederhana: ambil posisi acak di area
             local size = area.Size
             local step = 6
             for x = -size.X/2 + 3, size.X/2 - 3, step do
@@ -385,7 +366,7 @@ local function autoPlant()
 end
 
 -- ============================================================
---  UI – TABS & ELEMEN (TETAP SAMA)
+--  UI – TABS & ELEMEN (Midnight Style)
 -- ============================================================
 local function addToggle(tab, name, desc, key, default, cb)
     return tab:AddToggle(name, desc or "", default or false, function(v)
@@ -393,15 +374,18 @@ local function addToggle(tab, name, desc, key, default, cb)
         if cb then cb(v) end
     end, key)
 end
+
 local function addSlider(tab, name, desc, min, max, default, key, cb)
     return tab:AddLineSlider(name, desc or "", min, max, default or min, function(v)
         S[key] = v
         if cb then cb(v) end
     end, key)
 end
+
 local function addButton(tab, name, desc, icon, cb)
     return tab:AddButton(name, desc or "", icon or "", cb)
 end
+
 local function addDropdown(tab, name, desc, options, multi, default, key, cb)
     return tab:AddDropdown(name, desc or "", options, multi or false, default or options[1], function(v)
         S[key] = v
@@ -411,17 +395,17 @@ end
 
 local S = {
     autoHarvest = false, autoSell = false, autoSteal = false,
-    autoBuy = false, autoPlant = false, autoOpen = false,
+    autoBuy = false, autoPlant = false,
     sellInterval = 60, harvestInterval = 2, stealInterval = 5,
     plantInterval = 10, buyInterval = 30,
     antiAfk = true, optimize = false,
 }
 
 -- Tabs
-local FarmTab = Window:CreateTab("Farm")
-local StealTab = Window:CreateTab("Steal")
-local ShopTab = Window:CreateTab("Shop")
-local MiscTab = Window:CreateTab("Misc")
+local FarmTab = Window:CreateTab("Farm", "rbxassetid://16932740082")
+local StealTab = Window:CreateTab("Steal", "rbxassetid://16932740082")
+local ShopTab = Window:CreateTab("Shop", "rbxassetid://16932740082")
+local MiscTab = Window:CreateTab("Misc", "rbxassetid://16932740082")
 
 -- Farm Tab
 addToggle(FarmTab, "Auto Harvest", "Harvest ready crops", "autoHarvest", false)
@@ -516,10 +500,10 @@ end)
 -- ============================================================
 Window:Notify({
     Title = "W424HUB Ultimate",
-    Description = "All-in-One Grow a Garden 2 Script",
+    Description = "Grow a Garden 2 All-in-One",
     Content = "Press RightShift to toggle",
-    Color = Color3.fromRGB(0, 130, 200),
+    Color = Color3.fromRGB(30, 30, 60),
     Delay = 5
 })
 
-print("✅ W424HUB Ultimate loaded.")
+print("✅ W424HUB loaded.")
