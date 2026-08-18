@@ -24,7 +24,13 @@ if not Kairo then error("Kairo UI gagal dimuat") end
 local Window = Kairo:CreateWindow({
     Title = "W424HUB-GAG2 | V.3.0",
     Theme = "Midnight",
-    Size = UDim2.fromOffset(400, 520),
+    -- Cek ukuran layar device
+local ScreenSize = workspace.CurrentCamera.ViewportSize
+-- Hitung lebar (sisihkan 20px), dan tinggi (sisihkan 80px untuk tombol atas bawah Roblox)
+local MobileWidth = math.clamp(ScreenSize.X - 20, 280, 400)
+local MobileHeight = math.clamp(ScreenSize.Y - 80, 380, 480)
+
+Size = UDim2.fromOffset(MobileWidth, MobileHeight),
     Center = true,
     Draggable = true,
     Resize = false,
