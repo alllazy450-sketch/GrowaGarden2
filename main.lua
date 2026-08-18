@@ -1,8 +1,8 @@
 -- ============================================================
---  W424HUB-GAG2 | V.3.1 (Kairo UI)
---  Grow a Garden 2 – All-in-One + Advanced Features
+--  W424HUB-GAG2 | V.3.2 (Kairo UI)
+--  Grow a Garden 2 – All-in-One + Fixed Auto Plant
 -- ============================================================
-print("=== LOADING W424HUB-GAG2 V.3.1 ===")
+print("=== LOADING W424HUB-GAG2 V.3.2 ===")
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 
@@ -16,7 +16,6 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local CollectionService = game:GetService("CollectionService")
 local VirtualUser = game:GetService("VirtualUser")
-local TeleportService = game:GetService("TeleportService")
 
 -- ===== LOAD KAIRO UI =====
 local Kairo = loadstring(game:HttpGet("https://raw.githubusercontent.com/Itzzavi335/Kairo-Ui-Library/refs/heads/main/source.luau"))()
@@ -27,13 +26,13 @@ local MobileWidth = math.clamp(ScreenSize.X - 20, 280, 400)
 local MobileHeight = math.clamp(ScreenSize.Y - 80, 380, 480)
 
 local Window = Kairo:CreateWindow({
-    Title = "W424HUB-GAG2 | V.3.1",
+    Title = "W424HUB-GAG2 | V.3.2",
     Theme = "Midnight",
     Size = UDim2.fromOffset(MobileWidth, MobileHeight),
     Center = true,
     Draggable = true,
     Resize = false,
-    Badges = {"GAG2", "V.3.1"},
+    Badges = {"GAG2", "V.3.2"},
     MinimizeKey = Enum.KeyCode.RightShift,
     MinimizeButton = true,
     MinimizeButton_Image = "rbxassetid://116850882259653",
@@ -203,151 +202,99 @@ local function AddNumberInput(tab, title, desc, default, callback, flag)
 end
 
 -- ============================================================
---  NEW FEATURE FUNCTIONS
+--  FIXED AUTO PLANT (using official handler)
 -- ============================================================
-
--- Auto Water
-local function autoWaterPlants()
+local function plantSpecific(items)
     local plot = getMyPlot()
-    if not plot or not Networking then return end
-    local plants = plot:FindFirstChild("Plants")
-    if not plants then return end
-    for _, plant in ipairs(plants:GetChildren()) do
-        if plant:IsA("Model") then
-            local waterLevel = plant:GetAttribute("WaterLevel") or 0
-            local maxWater = plant:GetAttribute("MaxWater") or 100
-            if waterLevel < maxWater * 0.5 then
-                local pid = plant:GetAttribute("PlantId")
-                if pid then
-                    pcall(function() Networking.Plant.WaterPlant:Fire(pid) end)
-                    task.wait(0.1)
+    if not plot then
+        warn("No plot found")
+        return
+    end
+    if not Networking and not PlantLifecycleHandler then
+        warn("No planting interface available")
+        return
+    end
+
+    local inv = LocalPlayer:GetAttribute("Inventory")
+    if not inv or not inv.Seeds then
+        warn("No seeds in inventory")
+        return
+    end
+    local seeds = inv.Seeds
+
+    -- Gather free positions (more thorough)
+    local freeSpots = {}
+    local function addSpotsFromArea(area)
+        if not area:IsA("BasePart") then return end
+        local size = area.Size
+        local step = 5.5
+        for x = -size.X/2 + 3, size.X/2 - 3, step do
+            for z = -size.Z/2 + 3, size.Z/2 - 3, step do
+                local pos = area.CFrame * CFrame.new(x, 0.5, z)
+                table.insert(freeSpots, pos.Position)
+            end
+        end
+    end
+
+    -- Search plot for PlantArea parts
+    for _, child in ipairs(plot:GetDescendants()) do
+        if child:IsA("BasePart") and (child.Name == "PlantArea" or child.Name == "Soil") then
+            addSpotsFromArea(child)
+        end
+    end
+    -- Also check CollectionService tagged areas
+    for _, area in ipairs(CollectionService:GetTagged("PlantArea")) do
+        if area:IsDescendantOf(plot) then
+            addSpotsFromArea(area)
+        end
+    end
+
+    if #freeSpots == 0 then
+        warn("No plantable spots found")
+        return
+    end
+
+    local planted = 0
+    for seedName, count in pairs(seeds) do
+        if count > 0 and planted < 40 then
+            local shouldPlant = isSelected(items, seedName)
+            if shouldPlant then
+                -- Plant up to 5 per seed type per cycle
+                local toPlant = math.min(count, 5)
+                for i = 1, toPlant do
+                    if planted >= #freeSpots then break end
+                    local pos = freeSpots[planted + 1]
+                    local success = false
+                    
+                    -- Try using the official PlantLifecycleHandler first
+                    if PlantLifecycleHandler and PlantLifecycleHandler.PlantSeed then
+                        pcall(function()
+                            PlantLifecycleHandler:PlantSeed(seedName, pos, plot)
+                        end)
+                        success = true
+                    elseif Networking and Networking.Plant and Networking.Plant.PlantSeed then
+                        -- Fallback: try corrected order (plot, pos, seed)
+                        pcall(function()
+                            Networking.Plant.PlantSeed:Fire(plot, pos, seedName)
+                        end)
+                        success = true
+                    else
+                        warn("No planting method available")
+                        return
+                    end
+                    
+                    if success then
+                        planted = planted + 1
+                        task.wait(0.15) -- gentle delay
+                    end
                 end
             end
         end
     end
 end
 
--- Auto Sprinkler placement
-local function autoPlaceSprinkler()
-    local plot = getMyPlot()
-    if not plot or not Networking then return end
-    local inv = LocalPlayer:GetAttribute("Inventory") or {}
-    local gears = inv.Gears or {}
-    local hasSprinkler = false
-    for name, count in pairs(gears) do
-        if string.find(name:lower(), "sprinkler") and count > 0 then
-            hasSprinkler = true
-            break
-        end
-    end
-    if not hasSprinkler then return end
-    local ref = plot:FindFirstChild("PlotSizeReference")
-    if not ref then return end
-    local pos = ref.CFrame * CFrame.new(0, 0.5, 0)
-    pcall(function()
-        Networking.Plant.PlaceSprinkler:Fire(pos.Position, plot)
-    end)
-end
-
--- Auto Expand
-local function autoExpandGarden()
-    if not Networking then return end
-    local plot = getMyPlot()
-    if not plot then return end
-    local expandData = ReplicatedStorage:FindFirstChild("GardenExpansion")
-    if expandData then
-        local cost = expandData:GetAttribute("Cost") or 0
-        local sheckles = LocalPlayer:GetAttribute("Sheckles") or 0
-        if sheckles >= cost then
-            pcall(function() Networking.Garden.ExpandGarden:Fire() end)
-        end
-    end
-end
-
--- Auto Shovel worst plant
-local function autoShovelWorstPlant()
-    local plot = getMyPlot()
-    if not plot or not Networking then return end
-    local plants = plot:FindFirstChild("Plants")
-    if not plants then return end
-    local worstPlant = nil
-    local worstValue = math.huge
-    for _, plant in ipairs(plants:GetChildren()) do
-        if plant:IsA("Model") then
-            local age = plant:GetAttribute("Age") or 0
-            local growthTime = plant:GetAttribute("GrowthTime") or 0
-            local efficiency = age > 0 and growthTime / age or math.huge
-            if efficiency < worstValue then
-                worstValue = efficiency
-                worstPlant = plant
-            end
-        end
-    end
-    if worstPlant then
-        local pid = worstPlant:GetAttribute("PlantId")
-        if pid then
-            pcall(function() Networking.Plant.ShovelPlant:Fire(pid) end)
-        end
-    end
-end
-
--- Auto Claim Rewards & Codes
-local CODES = {"UPDATE2026", "GAG2FARM", "FREESHEK"} -- Update with current codes
-local function autoClaimRewards()
-    if not Networking then return end
-    pcall(function() Networking.DailyReward.Claim:Fire() end)
-    local rewards = ReplicatedStorage:FindFirstChild("Rewards")
-    if rewards then
-        for _, reward in ipairs(rewards:GetChildren()) do
-            if reward:IsA("ValueBase") and reward.Value == true then
-                pcall(function() Networking.Rewards.Claim:Fire(reward.Name) end)
-            end
-        end
-    end
-    -- Redeem codes
-    for _, code in ipairs(CODES) do
-        pcall(function() Networking.Codes.Redeem:Fire(code) end)
-        task.wait(0.5)
-    end
-end
-
--- Teleport to location
-local function teleportToLocation(locationName)
-    local hrp = getHRP()
-    if not hrp then return end
-    local loc = nil
-    for _, part in ipairs(Workspace:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name == locationName then
-            loc = part
-            break
-        end
-    end
-    if loc then
-        local targetCF = loc.CFrame + Vector3.new(0, 3, 0)
-        teleportTo(targetCF, 50)
-    end
-end
-
--- Filter for harvest (mutated/favorite/weight)
-local function shouldHarvestFruit(fruit)
-    local seedName = fruit:GetAttribute("SeedName") or fruit:GetAttribute("CorePartName")
-    if S.onlyHarvestMutated then
-        local isMutated = fruit:GetAttribute("IsMutated") or false
-        if not isMutated then return false end
-    end
-    if S.onlyHarvestFavorite then
-        local isFavorite = fruit:GetAttribute("IsFavorite") or false
-        if not isFavorite then return false end
-    end
-    if S.targetWeight > 0 then
-        local weight = fruit:GetAttribute("Weight") or 0
-        if weight < S.targetWeight then return false end
-    end
-    return true
-end
-
 -- ============================================================
---  ORIGINAL FUNCTIONS (modified with filter)
+--  OTHER FUNCTIONS (unchanged)
 -- ============================================================
 
 local function harvestSpecific(items)
@@ -364,7 +311,20 @@ local function harvestSpecific(items)
                 if fruit:IsA("Model") then
                     local seedName = fruit:GetAttribute("SeedName") or fruit:GetAttribute("CorePartName")
                     local shouldHarvest = isSelected(items, seedName)
-                    if shouldHarvest and shouldHarvestFruit(fruit) then
+                    if shouldHarvest then
+                        -- Apply filters
+                        if S.onlyHarvestMutated then
+                            local isMutated = fruit:GetAttribute("IsMutated") or false
+                            if not isMutated then goto continue end
+                        end
+                        if S.onlyHarvestFavorite then
+                            local isFavorite = fruit:GetAttribute("IsFavorite") or false
+                            if not isFavorite then goto continue end
+                        end
+                        if S.targetWeight > 0 then
+                            local weight = fruit:GetAttribute("Weight") or 0
+                            if weight < S.targetWeight then goto continue end
+                        end
                         local age = fruit:GetAttribute("Age") or 0
                         local maxAge = fruit:GetAttribute("MaxAge") or 0
                         if age >= maxAge then
@@ -377,12 +337,25 @@ local function harvestSpecific(items)
                             end
                         end
                     end
+                    ::continue::
                 end
             end
         else
             local seedName = plant:GetAttribute("SeedName") or plant:GetAttribute("CorePartName")
             local shouldHarvest = isSelected(items, seedName)
             if shouldHarvest then
+                if S.onlyHarvestMutated then
+                    local isMutated = plant:GetAttribute("IsMutated") or false
+                    if not isMutated then goto continue2 end
+                end
+                if S.onlyHarvestFavorite then
+                    local isFavorite = plant:GetAttribute("IsFavorite") or false
+                    if not isFavorite then goto continue2 end
+                end
+                if S.targetWeight > 0 then
+                    local weight = plant:GetAttribute("Weight") or 0
+                    if weight < S.targetWeight then goto continue2 end
+                end
                 local age = plant:GetAttribute("Age") or 0
                 local maxAge = plant:GetAttribute("MaxAge") or 0
                 if age >= maxAge then
@@ -394,6 +367,7 @@ local function harvestSpecific(items)
                     end
                 end
             end
+            ::continue2::
         end
     end
     return count
@@ -471,53 +445,6 @@ local function buyItems()
     end)
 end
 
-local function plantSpecific(items)
-    local plot = getMyPlot()
-    if not plot or not Networking then return end
-    local inv = LocalPlayer:GetAttribute("Inventory")
-    if not inv or not inv.Seeds then return end
-    local seeds = inv.Seeds
-    local freeSpots = {}
-    local function addSpotsFromArea(area)
-        local size = area.Size
-        local step = 6
-        for x = -size.X/2 + 3, size.X/2 - 3, step do
-            for z = -size.Z/2 + 3, size.Z/2 - 3, step do
-                local pos = area.CFrame * CFrame.new(x, 0.5, z)
-                table.insert(freeSpots, pos.Position)
-            end
-        end
-    end
-    for _, area in ipairs(plot:GetDescendants()) do
-        if area:IsA("BasePart") and (area.Name == "PlantArea" or area.Name == "Soil") then
-            addSpotsFromArea(area)
-        end
-    end
-    for _, area in ipairs(CollectionService:GetTagged("PlantArea")) do
-        if area:IsDescendantOf(plot) then
-            addSpotsFromArea(area)
-        end
-    end
-    if #freeSpots == 0 then return end
-    local planted = 0
-    for seed, count in pairs(seeds) do
-        if count > 0 and planted < 40 then
-            local shouldPlant = isSelected(items, seed)
-            if shouldPlant then
-                for i = 1, math.min(count, 5) do
-                    if planted >= #freeSpots then break end
-                    local pos = freeSpots[planted + 1]
-                    pcall(function()
-                        Networking.Plant.PlantSeed:Fire(pos, seed, plot)
-                    end)
-                    planted = planted + 1
-                    task.wait(0.1)
-                end
-            end
-        end
-    end
-end
-
 local function openItems(category)
     if not Networking then return end
     local inv = LocalPlayer:GetAttribute("Inventory") or {}
@@ -588,6 +515,125 @@ local function performSteal()
     end)
     task.wait(0.5)
     teleportTo(home, 33)
+end
+
+-- ============================================================
+--  NEW FEATURE FUNCTIONS (Water, Expand, Shovel, Claim, Teleport)
+-- ============================================================
+
+local function autoWaterPlants()
+    local plot = getMyPlot()
+    if not plot or not Networking then return end
+    local plants = plot:FindFirstChild("Plants")
+    if not plants then return end
+    for _, plant in ipairs(plants:GetChildren()) do
+        if plant:IsA("Model") then
+            local waterLevel = plant:GetAttribute("WaterLevel") or 0
+            local maxWater = plant:GetAttribute("MaxWater") or 100
+            if waterLevel < maxWater * 0.5 then
+                local pid = plant:GetAttribute("PlantId")
+                if pid then
+                    pcall(function() Networking.Plant.WaterPlant:Fire(pid) end)
+                    task.wait(0.1)
+                end
+            end
+        end
+    end
+end
+
+local function autoPlaceSprinkler()
+    local plot = getMyPlot()
+    if not plot or not Networking then return end
+    local inv = LocalPlayer:GetAttribute("Inventory") or {}
+    local gears = inv.Gears or {}
+    local hasSprinkler = false
+    for name, count in pairs(gears) do
+        if string.find(name:lower(), "sprinkler") and count > 0 then
+            hasSprinkler = true
+            break
+        end
+    end
+    if not hasSprinkler then return end
+    local ref = plot:FindFirstChild("PlotSizeReference")
+    if not ref then return end
+    local pos = ref.CFrame * CFrame.new(0, 0.5, 0)
+    pcall(function()
+        Networking.Plant.PlaceSprinkler:Fire(pos.Position, plot)
+    end)
+end
+
+local function autoExpandGarden()
+    if not Networking then return end
+    local plot = getMyPlot()
+    if not plot then return end
+    local expandData = ReplicatedStorage:FindFirstChild("GardenExpansion")
+    if expandData then
+        local cost = expandData:GetAttribute("Cost") or 0
+        local sheckles = LocalPlayer:GetAttribute("Sheckles") or 0
+        if sheckles >= cost then
+            pcall(function() Networking.Garden.ExpandGarden:Fire() end)
+        end
+    end
+end
+
+local function autoShovelWorstPlant()
+    local plot = getMyPlot()
+    if not plot or not Networking then return end
+    local plants = plot:FindFirstChild("Plants")
+    if not plants then return end
+    local worstPlant = nil
+    local worstValue = math.huge
+    for _, plant in ipairs(plants:GetChildren()) do
+        if plant:IsA("Model") then
+            local age = plant:GetAttribute("Age") or 0
+            local growthTime = plant:GetAttribute("GrowthTime") or 0
+            local efficiency = age > 0 and growthTime / age or math.huge
+            if efficiency < worstValue then
+                worstValue = efficiency
+                worstPlant = plant
+            end
+        end
+    end
+    if worstPlant then
+        local pid = worstPlant:GetAttribute("PlantId")
+        if pid then
+            pcall(function() Networking.Plant.ShovelPlant:Fire(pid) end)
+        end
+    end
+end
+
+local CODES = {"UPDATE2026", "GAG2FARM", "FREESHEK"} -- Update with current codes
+local function autoClaimRewards()
+    if not Networking then return end
+    pcall(function() Networking.DailyReward.Claim:Fire() end)
+    local rewards = ReplicatedStorage:FindFirstChild("Rewards")
+    if rewards then
+        for _, reward in ipairs(rewards:GetChildren()) do
+            if reward:IsA("ValueBase") and reward.Value == true then
+                pcall(function() Networking.Rewards.Claim:Fire(reward.Name) end)
+            end
+        end
+    end
+    for _, code in ipairs(CODES) do
+        pcall(function() Networking.Codes.Redeem:Fire(code) end)
+        task.wait(0.5)
+    end
+end
+
+local function teleportToLocation(locationName)
+    local hrp = getHRP()
+    if not hrp then return end
+    local loc = nil
+    for _, part in ipairs(Workspace:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name == locationName then
+            loc = part
+            break
+        end
+    end
+    if loc then
+        local targetCF = loc.CFrame + Vector3.new(0, 3, 0)
+        teleportTo(targetCF, 50)
+    end
 end
 
 -- ============================================================
@@ -776,7 +822,7 @@ Window:AddButton(MiscTab, "Unload Script", "Hapus UI dan stop script", "rbxasset
 end)
 
 -- ============================================================
---  MAIN LOOPS (UPDATED)
+--  MAIN LOOPS
 -- ============================================================
 
 -- Auto Harvest (fast loop)
@@ -799,7 +845,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Plant
+-- Auto Plant (using fixed function)
 task.spawn(function()
     while true do
         task.wait(S.plantInterval or 10)
@@ -846,7 +892,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Shovel (every 2 minutes)
+-- Auto Shovel
 task.spawn(function()
     while true do
         task.wait(120)
@@ -854,7 +900,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Claim (every 5 minutes)
+-- Auto Claim
 task.spawn(function()
     while true do
         task.wait(300)
@@ -875,10 +921,10 @@ end)
 -- Startup notification
 Window:Notify({
     Title = "W424HUB-GAG2",
-    Description = "V.3.1 – Grow a Garden 2",
-    Content = "Press RightShift to toggle | New: Water, Expand, Shovel, Claim, Filters, TP",
+    Description = "V.3.2 – Grow a Garden 2",
+    Content = "Press RightShift to toggle | Auto Plant FIXED!",
     Color = Color3.fromRGB(30, 30, 60),
     Delay = 6
 })
 
-print("✅ W424HUB-GAG2 V.3.1 (Kairo UI) loaded!")
+print("✅ W424HUB-GAG2 V.3.2 (Kairo UI) loaded!")
